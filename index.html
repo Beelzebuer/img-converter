@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片转换工具</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #f5f5f7;
+            --bg-card: rgba(255, 255, 255, 0.8);
+            --accent: #0071e3;
+            --accent-hover: #0077ed;
+            --text-primary: #1d1d1f;
+            --text-secondary: #86868b;
+            --border: rgba(0, 0, 0, 0.05);
+            --shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+            --radius-lg: 16px;
+            --radius-md: 12px;
+            --radius-sm: 8px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-primary: #000000;
+                --bg-card: rgba(28, 28, 30, 0.8);
+                --text-primary: #f5f5f7;
+                --text-secondary: #98989d;
+                --border: rgba(255, 255, 255, 0.1);
+                --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+            }
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 60px 20px;
+            line-height: 1.5;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 680px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 48px;
+            font-weight: 600;
+            letter-spacing: -0.015em;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            font-size: 21px;
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            padding: 24px;
+            margin-bottom: 16px;
+            transition: var(--transition);
+        }
+
+        .drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius-md);
+            padding: 60px 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .drop-zone:hover,
+        .drop-zone.dragover {
+            border-color: var(--accent);
+            transform: scale(1.01);
+        }
+
+        .drop-zone-icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 16px;
+            background: linear-gradient(135deg, var(--accent), #5856d6);
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            color: white;
+        }
+
+        .drop-zone-text {
+            font-size: 19px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        .drop-zone-hint {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .drop-zone input {
+            display: none;
+        }
+
+        .settings {
+            display: grid;
+            gap: 20px;
+        }
+
+        .setting-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .setting-label {
+            font-size: 15px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        select, input[type="number"] {
+            font-family: inherit;
+            font-size: 15px;
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            outline: none;
+            transition: var(--transition);
+            min-width: 140px;
+        }
+
+        select:focus, input[type="number"]:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.1);
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+            max-width: 300px;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 4px;
+            background: var(--border);
+            border-radius: 2px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--accent);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 113, 227, 0.3);
+            transition: var(--transition);
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+        }
+
+        .slider-value {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--accent);
+            min-width: 40px;
+            text-align: right;
+        }
+
+        .file-list {
+            max-height: 320px;
+            overflow-y: auto;
+        }
+
+        .file-list:empty::before {
+            content: '暂无文件，请上传图片';
+            display: block;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 15px;
+            padding: 40px;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: var(--radius-sm);
+            background: var(--bg-primary);
+            margin-bottom: 8px;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .file-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--accent), #5856d6);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .file-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .file-name {
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-meta {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .file-arrow {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .file-output {
+            font-size: 13px;
+            color: var(--accent);
+            font-weight: 500;
+        }
+
+        .file-remove {
+            width: 28px;
+            height: 28px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: var(--transition);
+        }
+
+        .file-remove:hover {
+            background: rgba(255, 59, 48, 0.1);
+            color: #ff3b30;
+        }
+
+        .btn {
+            font-family: inherit;
+            font-size: 17px;
+            font-weight: 500;
+            padding: 14px 32px;
+            border: none;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+            width: 100%;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .progress-container {
+            display: none;
+            margin-top: 16px;
+        }
+
+        .progress-container.active {
+            display: block;
+        }
+
+        .progress-bar {
+            height: 4px;
+            background: var(--border);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 2px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .progress-text {
+            text-align: center;
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: 8px;
+        }
+
+        .dimension-inputs {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .dimension-inputs input {
+            width: 80px;
+            min-width: 80px;
+        }
+
+        .dimension-separator {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>图片转换</h1>
+            <p class="subtitle">轻量、快速、安全，本地处理不上传</p>
+        </header>
+
+        <div class="card">
+            <div class="drop-zone" id="dropZone">
+                <div class="drop-zone-icon">+</div>
+                <div class="drop-zone-text">拖放文件到这里</div>
+                <div class="drop-zone-hint">或点击选择文件，支持批量上传</div>
+                <input type="file" id="fileInput" accept="image/*" multiple>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="settings">
+                <div class="setting-row">
+                    <span class="setting-label">输出格式</span>
+                    <select id="outputFormat">
+                        <option value="png">PNG</option>
+                        <option value="jpeg" selected>JPEG</option>
+                        <option value="webp">WebP</option>
+                    </select>
+                </div>
+
+                <div class="setting-row">
+                    <span class="setting-label">图片质量</span>
+                    <div class="slider-container">
+                        <input type="range" id="quality" min="10" max="100" value="85">
+                        <span class="slider-value" id="qualityValue">85%</span>
+                    </div>
+                </div>
+
+                <div class="setting-row">
+                    <span class="setting-label">调整尺寸</span>
+                    <select id="resizeMode">
+                        <option value="none">保持原尺寸</option>
+                        <option value="percent">按百分比</option>
+                        <option value="pixels">按像素</option>
+                    </select>
+                </div>
+
+                <div class="setting-row hidden" id="percentRow">
+                    <span class="setting-label">缩放比例</span>
+                    <div class="slider-container">
+                        <input type="range" id="percentValue" min="10" max="200" value="100">
+                        <span class="slider-value" id="percentDisplay">100%</span>
+                    </div>
+                </div>
+
+                <div class="setting-row hidden" id="pixelsRow">
+                    <span class="setting-label">目标尺寸</span>
+                    <div class="dimension-inputs">
+                        <input type="number" id="width" placeholder="宽度" min="1">
+                        <span class="dimension-separator">×</span>
+                        <input type="number" id="height" placeholder="高度" min="1">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="file-list" id="fileList"></div>
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-text" id="progressText">处理中...</div>
+            </div>
+        </div>
+
+        <button class="btn btn-primary" id="convertBtn" disabled>
+            开始转换
+        </button>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const convertBtn = document.getElementById('convertBtn');
+        const outputFormat = document.getElementById('outputFormat');
+        const quality = document.getElementById('quality');
+        const qualityValue = document.getElementById('qualityValue');
+        const resizeMode = document.getElementById('resizeMode');
+        const percentRow = document.getElementById('percentRow');
+        const percentValue = document.getElementById('percentValue');
+        const percentDisplay = document.getElementById('percentDisplay');
+        const pixelsRow = document.getElementById('pixelsRow');
+        const widthInput = document.getElementById('width');
+        const heightInput = document.getElementById('height');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+
+        let files = [];
+
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        quality.addEventListener('input', () => {
+            qualityValue.textContent = quality.value + '%';
+        });
+
+        resizeMode.addEventListener('change', () => {
+            const mode = resizeMode.value;
+            percentRow.classList.toggle('hidden', mode !== 'percent');
+            pixelsRow.classList.toggle('hidden', mode !== 'pixels');
+        });
+
+        percentValue.addEventListener('input', () => {
+            percentDisplay.textContent = percentValue.value + '%';
+        });
+
+        function handleFiles(fileList) {
+            const imageFiles = Array.from(fileList).filter(file => file.type.startsWith('image/'));
+            imageFiles.forEach(file => {
+                if (!files.find(f => f.name === file.name && f.size === file.size)) {
+                    files.push(file);
+                }
+            });
+            renderFileList();
+        }
+
+        function formatSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        function renderFileList() {
+            fileList.innerHTML = '';
+            files.forEach((file, index) => {
+                const item = document.createElement('div');
+                item.className = 'file-item';
+                const outputExt = outputFormat.value === 'jpeg' ? 'jpg' : outputFormat.value;
+                const outputName = file.name.replace(/\.[^/.]+$/, '') + '.' + outputExt;
+
+                item.innerHTML = `
+                    <div class="file-icon">📄</div>
+                    <div class="file-info">
+                        <div class="file-name">${file.name}</div>
+                        <div class="file-meta">${formatSize(file.size)}</div>
+                    </div>
+                    <span class="file-arrow">→</span>
+                    <span class="file-output">${outputName}</span>
+                    <button class="file-remove" data-index="${index}">×</button>
+                `;
+                fileList.appendChild(item);
+            });
+
+            document.querySelectorAll('.file-remove').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const index = parseInt(e.target.dataset.index);
+                    files.splice(index, 1);
+                    renderFileList();
+                });
+            });
+
+            convertBtn.disabled = files.length === 0;
+        }
+
+        outputFormat.addEventListener('change', renderFileList);
+
+        function loadImage(file) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                const url = URL.createObjectURL(file);
+                img.onload = () => {
+                    URL.revokeObjectURL(url);
+                    resolve(img);
+                };
+                img.onerror = reject;
+                img.src = url;
+            });
+        }
+
+        function getTargetDimensions(img) {
+            const mode = resizeMode.value;
+            let width = img.width;
+            let height = img.height;
+
+            if (mode === 'percent') {
+                const percent = parseInt(percentValue.value) / 100;
+                width = Math.round(img.width * percent);
+                height = Math.round(img.height * percent);
+            } else if (mode === 'pixels') {
+                const targetWidth = parseInt(widthInput.value);
+                const targetHeight = parseInt(heightInput.value);
+                if (targetWidth) {
+                    height = Math.round(img.height * (targetWidth / img.width));
+                    width = targetWidth;
+                }
+                if (targetHeight && !targetWidth) {
+                    width = Math.round(img.width * (targetHeight / img.height));
+                    height = targetHeight;
+                }
+                if (targetWidth && targetHeight) {
+                    width = targetWidth;
+                    height = targetHeight;
+                }
+            }
+
+            return { width, height };
+        }
+
+        function convertImage(file) {
+            return new Promise(async (resolve, reject) => {
+                try {
+                    const img = await loadImage(file);
+                    const { width, height } = getTargetDimensions(img);
+
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = width;
+                    canvas.height = height;
+
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    const format = outputFormat.value;
+                    const qualityValue = parseInt(quality.value) / 100;
+                    const mimeType = format === 'jpeg' ? 'image/jpeg' :
+                                    format === 'png' ? 'image/png' : 'image/webp';
+
+                    canvas.toBlob((blob) => {
+                        if (blob) {
+                            const ext = format === 'jpeg' ? 'jpg' : format;
+                            const name = file.name.replace(/\.[^/.]+$/, '') + '.' + ext;
+                            resolve({ blob, name, originalName: file.name });
+                        } else {
+                            reject(new Error('转换失败'));
+                        }
+                    }, mimeType, qualityValue);
+                } catch (err) {
+                    reject(err);
+                }
+            });
+        }
+
+        function downloadFile(blob, name) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        async function downloadZip(results) {
+            const zip = new JSZip();
+            results.forEach(({ blob, name }) => {
+                zip.file(name, blob);
+            });
+            const content = await zip.generateAsync({ type: 'blob' });
+            downloadFile(content, 'converted-images.zip');
+        }
+
+        convertBtn.addEventListener('click', async () => {
+            if (files.length === 0) return;
+
+            convertBtn.disabled = true;
+            progressContainer.classList.add('active');
+            progressFill.style.width = '0%';
+            progressText.textContent = `处理中... (0/${files.length})`;
+
+            const results = [];
+            const errors = [];
+
+            for (let i = 0; i < files.length; i++) {
+                try {
+                    const result = await convertImage(files[i]);
+                    results.push(result);
+                    progressFill.style.width = `${((i + 1) / files.length) * 100}%`;
+                    progressText.textContent = `处理中... (${i + 1}/${files.length})`;
+                } catch (err) {
+                    errors.push({ name: files[i].name, error: err.message });
+                }
+            }
+
+            progressText.textContent = `完成！成功 ${results.length} 个${errors.length > 0 ? '，失败 ' + errors.length + ' 个' : ''}`;
+
+            if (results.length === 1) {
+                downloadFile(results[0].blob, results[0].name);
+            } else if (results.length > 1) {
+                await downloadZip(results);
+            }
+
+            if (errors.length > 0) {
+                console.error('转换失败的文件:', errors);
+            }
+
+            setTimeout(() => {
+                progressContainer.classList.remove('active');
+                convertBtn.disabled = false;
+            }, 2000);
+        });
+    </script>
+</body>
+</html>
